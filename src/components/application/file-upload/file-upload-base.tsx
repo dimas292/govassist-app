@@ -267,8 +267,8 @@ export const FileListItemProgressBar = ({ name, size, progress, failed, type, fi
                 className,
             )}
         >
-            <FileTypeIcon className="size-10 shrink-0 dark:hidden" type={type ?? "empty"} theme="light" variant={fileIconVariant ?? "default"} />
-            <FileTypeIcon className="size-10 shrink-0 not-dark:hidden" type={type ?? "empty"} theme="dark" variant={fileIconVariant ?? "default"} />
+            <FileTypeIcon className="file-type-icon size-10 shrink-0 dark:hidden" type={type ?? "empty"} theme="light" variant={fileIconVariant ?? "default"} />
+            <FileTypeIcon className="file-type-icon size-10 shrink-0 not-dark:hidden" type={type ?? "empty"} theme="dark" variant={fileIconVariant ?? "default"} />
 
             <div className="flex min-w-0 flex-1 flex-col items-start">
                 <div className="flex w-full max-w-full min-w-0 flex-1">

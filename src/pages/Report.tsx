@@ -1,0 +1,425 @@
+import { useEffect, useRef, useState } from "react";
+import { Send01 } from "@untitledui/icons";
+
+import { Badge } from "@/components/base/badges/badges";
+import { Button } from "@/components/base/buttons/button";
+import { FileUpload } from "@/components/application/file-upload/file-upload-base";
+
+type UploadedImage = {
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    progress: number;
+    failed?: boolean;
+    fileObject: File;
+};
+
+const uploadFile = (file: File, onProgress: (progress: number) => void) => {
+    // Dummy upload
+    // Nanti bisa diganti dengan upload ke Supabase Storage.
+    let progress = 0;
+
+    const interval = window.setInterval(() => {
+        progress += 1;
+        onProgress(progress);
+
+        if (progress >= 100) {
+            clearInterval(interval);
+        }
+    }, 30);
+};
+
+export default function Report() {
+    const [isRecording, setIsRecording] = useState(false);
+    const [seconds, setSeconds] = useState(0);
+    const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+    const [uploadedFiles, setUploadedFiles] = useState<UploadedImage[]>([]);
+
+    const recorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
+    const timerRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (isRecording) {
+            timerRef.current = window.setInterval(() => {
+                setSeconds((prev) => prev + 1);
+            }, 1000);
+        } else if (timerRef.current) {
+            clearInterval(timerRef.current);
+        }
+
+        return () => {
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+            }
+        };
+    }, [isRecording]);
+
+    const formatTime = (value: number) => {
+        const minutes = Math.floor(value / 60);
+        const seconds = value % 60;
+
+        return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
+
+            chunksRef.current = [];
+
+            const recorder = new MediaRecorder(stream);
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    chunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, {
+                    type: "audio/webm",
+                });
+
+                const url = URL.createObjectURL(blob);
+
+                setAudioUrl(url);
+
+                stream.getTracks().forEach((track) => {
+                    track.stop();
+                });
+            };
+
+            recorderRef.current = recorder;
+
+            setSeconds(0);
+            setAudioUrl(null);
+            setIsRecording(true);
+
+            recorder.start();
+        } catch (error) {
+            console.error("Gagal mengakses mikrofon:", error);
+        }
+    };
+
+    const stopRecording = () => {
+        recorderRef.current?.stop();
+        setIsRecording(false);
+    };
+
+    const resetRecording = () => {
+        if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+        }
+
+        setAudioUrl(null);
+        setSeconds(0);
+    };
+
+    // =========================
+    // FOTO PENDUKUNG
+    // =========================
+
+    const handleDropFiles = (files: FileList) => {
+        const remainingSlots = 3 - uploadedFiles.length;
+
+        if (remainingSlots <= 0) return;
+
+        const newFiles = Array.from(files).slice(0, remainingSlots);
+
+        const newFilesWithIds: UploadedImage[] = newFiles.map((file) => ({
+            id: crypto.randomUUID(),
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            progress: 0,
+            fileObject: file,
+        }));
+
+        setUploadedFiles((prev) => [...prev, ...newFilesWithIds]);
+
+        newFilesWithIds.forEach(({ id, fileObject }) => {
+            uploadFile(fileObject, (progress) => {
+                setUploadedFiles((prev) =>
+                    prev.map((uploadedFile) =>
+                        uploadedFile.id === id
+                            ? {
+                                  ...uploadedFile,
+                                  progress,
+                              }
+                            : uploadedFile,
+                    ),
+                );
+            });
+        });
+    };
+
+    const handleDropUnacceptedFiles = (files: FileList) => {
+        console.log("File tidak diterima:", files);
+    };
+
+    const handleDeleteFile = (id: string) => {
+        setUploadedFiles((prev) =>
+            prev.filter((file) => file.id !== id),
+        );
+    };
+
+    const handleRetryFile = (id: string) => {
+        const file = uploadedFiles.find((file) => file.id === id);
+
+        if (!file) return;
+
+        setUploadedFiles((prev) =>
+            prev.map((uploadedFile) =>
+                uploadedFile.id === id
+                    ? {
+                          ...uploadedFile,
+                          progress: 0,
+                          failed: false,
+                      }
+                    : uploadedFile,
+            ),
+        );
+
+        uploadFile(file.fileObject, (progress) => {
+            setUploadedFiles((prev) =>
+                prev.map((uploadedFile) =>
+                    uploadedFile.id === id
+                        ? {
+                              ...uploadedFile,
+                              progress,
+                              failed: false,
+                          }
+                        : uploadedFile,
+                ),
+            );
+        });
+    };
+
+    const submitReport = () => {
+        if (!audioUrl) return;
+
+        console.log("Kirim laporan");
+        console.log("Foto:", uploadedFiles.map((file) => file.fileObject));
+    };
+
+    return (
+        <section className="min-h-screen bg-primary py-4 sm:py-6">
+            <div className="mx-auto w-full max-w-container px-4 md:px-8">
+                {/* Header */}
+                <div className="mb-10">
+                    <h1 className="mt-5 text-display-sm font-semibold text-primary md:text-display-md">
+                        Buat Laporan Baru
+                    </h1>
+
+                    <p className="mt-3 w-full text-base md:text-lg">
+                        Sampaikan aspirasi atau keluhan Anda melalui rekaman suara.
+                        GovAssist akan membantu mengubah suara menjadi laporan yang
+                        lebih terstruktur.
+                    </p>
+                </div>
+
+                {/* Main Card */}
+                <div className="rounded-2xl border border-secondary bg-primary shadow-xs">
+                    {/* Card Header */}
+                    <div className="flex flex-col gap-4 border-b border-secondary px-6 py-5 md:flex-row md:items-center md:justify-between md:px-8">
+                        <div>
+                            <h2 className="text-lg font-semibold text-primary">
+                                Rekam Suara Pengaduan
+                            </h2>
+
+                            <p className="mt-1 text-sm text-tertiary">
+                                Ceritakan keluhan Anda secara jelas dan lengkap.
+                            </p>
+                        </div>
+
+                        <Badge size="sm" type="pill-color" color="brand">
+                            AI POWER MODE
+                        </Badge>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 md:p-8">
+                        {/* Recorder */}
+                        <div
+                            className={`relative flex min-h-80 flex-col items-center justify-center rounded-2xl border p-6 text-center transition ${
+                                isRecording
+                                    ? "border-brand-300 bg-brand-primary_alt"
+                                    : "border-secondary bg-secondary"
+                            }`}
+                        >
+                            {isRecording && (
+                                <div className="absolute top-6">
+                                    <Badge
+                                        size="sm"
+                                        type="pill-color"
+                                        color="error"
+                                    >
+                                        Sedang Merekam
+                                    </Badge>
+                                </div>
+                            )}
+
+                            {/* Mic Button */}
+                            <div className="relative">
+                                {isRecording && (
+                                    <div className="absolute inset-0 animate-ping rounded-full bg-brand-500 opacity-10" />
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        isRecording
+                                            ? stopRecording
+                                            : startRecording
+                                    }
+                                    className="relative flex size-28 items-center justify-center rounded-full border border-secondary bg-primary text-brand-600 shadow-lg transition hover:scale-105 active:scale-95"
+                                >
+                                    {isRecording ? (
+                                        <span className="size-8 rounded-md bg-error-600" />
+                                    ) : (
+                                        <svg
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            className="size-10"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                            <path d="M12 19v3" />
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Timer */}
+                            <p className="mt-7 text-display-xs font-semibold text-primary tabular-nums">
+                                {formatTime(seconds)}
+                            </p>
+
+                            <p className="mt-2 text-md text-tertiary">
+                                {isRecording
+                                    ? "Silakan ceritakan keluhan Anda."
+                                    : audioUrl
+                                      ? "Rekaman selesai dan siap dikirim."
+                                      : "Klik tombol mikrofon untuk mulai merekam."}
+                            </p>
+
+                            {/* Audio */}
+                            {audioUrl && !isRecording && (
+                                <div className="mt-7 w-full max-w-xl">
+                                    <audio
+                                        src={audioUrl}
+                                        controls
+                                        className="w-full"
+                                    />
+
+                                    <Button
+                                        color="link-color"
+                                        size="md"
+                                        className="mt-3"
+                                        onClick={resetRecording}
+                                    >
+                                        Rekam ulang
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* FOTO PENDUKUNG */}
+                        <div className="mt-6">
+                            <div className="mb-4 flex items-end justify-between gap-4">
+                                <div>
+                                    <h3 className="text-md font-semibold text-primary">
+                                        Foto Pendukung
+                                    </h3>
+
+                                    <p className="mt-1 text-sm text-tertiary">
+                                        Tambahkan foto untuk memperjelas laporan Anda.
+                                    </p>
+                                </div>
+
+                                <span className="shrink-0 text-sm font-medium text-tertiary">
+                                    {uploadedFiles.length}/3 foto
+                                </span>
+                            </div>
+
+                            <FileUpload.Root>
+                                {/* Hilang otomatis ketika sudah 3 foto */}
+                                {uploadedFiles.length < 3 && (
+                                    <FileUpload.DropZone
+                                        accept="image/png,image/jpeg"
+                                        hint={`Upload PNG atau JPEG (Maks ${
+                                            3 - uploadedFiles.length
+                                        } foto).`}
+                                        onDropFiles={handleDropFiles}
+                                        onDropUnacceptedFiles={
+                                            handleDropUnacceptedFiles
+                                        }
+                                    />
+                                )}
+
+                                {uploadedFiles.length > 0 && (
+                                    <FileUpload.List>
+                                        {uploadedFiles.map((file) => {
+                                            const {
+                                                fileObject: _,
+                                                ...fileProps
+                                            } = file;
+
+                                            return (
+                                                <FileUpload.ListItemProgressBar
+                                                    key={file.id}
+                                                    {...fileProps}
+                                                    onDelete={() =>
+                                                        handleDeleteFile(file.id)
+                                                    }
+                                                    onRetry={() =>
+                                                        handleRetryFile(file.id)
+                                                    }
+                                                />
+                                            );
+                                        })}
+                                    </FileUpload.List>
+                                )}
+                            </FileUpload.Root>
+
+                            {uploadedFiles.length === 3 && (
+                                <p className="mt-3 text-center text-sm font-medium text-brand-600">
+                                    Maksimal 3 foto telah ditambahkan.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Bottom */}
+                        <div className="mt-6 grid gap-4 lg:items-stretch">
+                            {/* Submit */}
+                            <Button
+                                size="xl"
+                                iconLeading={Send01}
+                                className="w-full justify-center sm:w-auto sm:min-w-64"
+                                isDisabled={!audioUrl || isRecording}
+                                onClick={submitReport}
+                            >
+                                Kirim Laporan
+                            </Button>
+                        </div>
+
+                        <div className="mt-4 flex w-full justify-center">
+                            <p className="text-center text-xs leading-5 font-medium text-brand-600 sm:text-sm sm:leading-6">
+                                DATA LOKASI DAN KATEGORI DIISI OTOMATIS OLEH AI
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
