@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 
@@ -14,12 +14,22 @@ import MainLayout from "@/layouts/MainLayout";
 
 import "@/styles/globals.css";
 
+const AdminDashboard = lazy(() => import("@/features/admin-dashboard"));
+
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
         <ThemeProvider defaultTheme="light">
             <BrowserRouter>
                 <RouteProvider>
                     <Routes>
+                        <Route
+                            path="/admin"
+                            element={
+                                <Suspense fallback={<div className="min-h-screen bg-primary" />}>
+                                    <AdminDashboard />
+                                </Suspense>
+                            }
+                        />
                         <Route element={<MainLayout />}>
                             <Route path="/" element={<Home />} />
                             <Route path="/report" element={<Report />} />

@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
+import { listTickets, type TicketSummary } from "@/services/api";
 
-type ReportStatus = "Diproses" | "Selesai";
+type ReportStatus = "Diterima" | "Diverifikasi" | "Diproses" | "Selesai";
 
 type ReportItem = {
     id: string;
@@ -14,47 +15,55 @@ type ReportItem = {
     status: ReportStatus;
 };
 
-const reports: ReportItem[] = [
-    {
-        id: "SR-8812",
-        time: "2 jam yang lalu",
-        issue: "Lampu Jalan Mati",
-        category: "Infrastruktur",
-        location: "Jl. Raya Pasar Induk",
-        status: "Diproses",
-    },
-    {
-        id: "SR-8790",
-        time: "1 hari yang lalu",
-        issue: "Sampah Menumpuk",
-        category: "Umum",
-        location: "Blok M Plaza",
-        status: "Selesai",
-    },
-    {
-        id: "SR-8755",
-        time: "3 hari yang lalu",
-        issue: "Pipa Bocor",
-        category: "Infrastruktur",
-        location: "Gang Kelinci No. 5",
-        status: "Selesai",
-    },
-];
+const categoryLabel = { MBG: "Makan Bergizi Gratis", INFRASTRUCTURE: "Infrastruktur", GENERAL: "Umum" } as const;
+
+const statusLabel = {
+    RECEIVED: "Diterima",
+    VERIFIED: "Diverifikasi",
+    IN_PROGRESS: "Diproses",
+    COMPLETED: "Selesai",
+} as const satisfies Record<TicketSummary["status"], ReportStatus>;
+
+const statusColor = {
+    Diterima: "gray",
+    Diverifikasi: "blue",
+    Diproses: "warning",
+    Selesai: "success",
+} as const;
+
+const toReportItem = (ticket: TicketSummary): ReportItem => ({
+    id: ticket.id,
+    time: new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(ticket.createdAt)),
+    issue: ticket.title,
+    category: categoryLabel[ticket.category],
+    location: ticket.location || "Lokasi tidak terdeteksi",
+    status: statusLabel[ticket.status],
+});
 
 export default function Tracking() {
     const [search, setSearch] = useState("");
     const [submittedSearch, setSubmittedSearch] = useState("");
+    const [reports, setReports] = useState<ReportItem[]>([]);
     const navigate = useNavigate();
 
-    const filteredReports = useMemo(() => {
-        if (!submittedSearch.trim()) {
-            return reports;
-        }
-
-        const keyword = submittedSearch.trim().replace("#", "").toLowerCase();
-
-        return reports.filter((report) => report.id.toLowerCase().includes(keyword));
+    useEffect(() => {
+        let active = true;
+        listTickets(submittedSearch)
+            .then((result) => {
+                if (active) setReports(result.data.map(toReportItem));
+            })
+            .catch((error) => {
+                if (active) {
+                    setReports([]);
+                    window.alert(error instanceof Error ? error.message : "Data laporan gagal dimuat.");
+                }
+            });
+        return () => {
+            active = false;
+        };
     }, [submittedSearch]);
+
+    const filteredReports = reports;
 
     const handleSearch = (event: React.FormEvent) => {
         event.preventDefault();
@@ -168,15 +177,9 @@ export default function Tracking() {
 
                                         {/* Status */}
                                         <td className="px-6 py-5">
-                                            {report.status === "Selesai" ? (
-                                                <Badge size="sm" type="pill-color" color="success">
-                                                    SELESAI
-                                                </Badge>
-                                            ) : (
-                                                <Badge size="sm" type="pill-color" color="warning">
-                                                    DIPROSES
-                                                </Badge>
-                                            )}
+                                            <Badge size="sm" type="pill-color" color={statusColor[report.status]}>
+                                                {report.status.toUpperCase()}
+                                            </Badge>
                                         </td>
 
                                         {/* Detail */}
@@ -234,15 +237,9 @@ export default function Tracking() {
                                         <p className="mt-1 text-xs text-tertiary">{report.time}</p>
                                     </div>
 
-                                    {report.status === "Selesai" ? (
-                                        <Badge size="sm" type="pill-color" color="success">
-                                            SELESAI
-                                        </Badge>
-                                    ) : (
-                                        <Badge size="sm" type="pill-color" color="warning">
-                                            DIPROSES
-                                        </Badge>
-                                    )}
+                                    <Badge size="sm" type="pill-color" color={statusColor[report.status]}>
+                                        {report.status.toUpperCase()}
+                                    </Badge>
                                 </div>
 
                                 <div className="mt-5">
