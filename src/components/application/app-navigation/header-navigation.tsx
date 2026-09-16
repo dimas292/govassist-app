@@ -81,7 +81,7 @@ const DefaultActions = ({ activeUrl }: { activeUrl?: string }) => {
                         tooltipPlacement="bottom"
                     />
 
-                    <div className="absolute -top-0.25 -right-0.25 flex size-3.5 items-center justify-center rounded-full bg-fg-error-primary text-[10px] font-bold text-white">
+                    <div className="absolute -top-0.25px -right-0.25px flex size-3.5 items-center justify-center rounded-full bg-fg-error-primary text-[10px] font-bold text-white">
                         2
                     </div>
                 </div>
