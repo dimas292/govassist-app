@@ -7,6 +7,10 @@ export default function Footer() {
                         © 2026 GovAssist. All rights reserved.
                     </p>
 
+                    <p className="text-sm font-medium text-quaternary">
+                        Versi {__APP_VERSION__}
+                    </p>
+
                     <p className="text-sm text-quaternary">
                         Suara Anda, Perubahan Nyata.
                     </p>
