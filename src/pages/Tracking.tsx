@@ -287,7 +287,11 @@ export default function Tracking() {
                                     {report.location}
                                 </div>
 
-                                <button type="button" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-600">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/tracking/${report.id}`)}
+                                    className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-600"
+                                >
                                     Lihat Detail
                                     <span>→</span>
                                 </button>
