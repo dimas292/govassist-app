@@ -83,13 +83,16 @@ export default function Home() {
                                             if (event.key === "Enter") handleTracking();
                                         }}
                                         placeholder="Masukkan ID..."
+                                        aria-label="ID laporan"
                                         className="min-w-0 flex-1 bg-transparent px-1 text-sm text-gray-900 outline-none placeholder:text-gray-400"
                                     />
 
                                     <button
                                         type="button"
                                         onClick={handleTracking}
-                                        className="ml-2 flex size-9 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50"
+                                        disabled={!reportId.trim()}
+                                        aria-label="Cek status laporan"
+                                        className="ml-2 flex size-9 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                         <ArrowRight className="size-5" />
                                     </button>
