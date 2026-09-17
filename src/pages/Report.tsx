@@ -267,7 +267,7 @@ export default function Report() {
     };
 
     return (
-        <section className="min-h-screen bg-primary py-4 sm:py-6">
+        <section className="min-h-screen bg-primary sm:py-6">
             {isSubmitting && aiLoadingStep !== null && (
                 <div
                     role="dialog"
@@ -306,7 +306,7 @@ export default function Report() {
             <div className="mx-auto w-full max-w-container px-4 md:px-8">
                 {/* Header */}
                 <div className="mb-10">
-                    <h1 className="mt-5 text-display-sm font-semibold text-primary md:text-display-md">
+                    {/* <h1 className="mt-5 text-display-sm font-semibold text-primary md:text-display-md">
                         Buat Laporan Baru
                     </h1>
 
@@ -314,7 +314,7 @@ export default function Report() {
                         Sampaikan aspirasi atau keluhan Anda melalui rekaman suara.
                         GovAssist akan membantu mengubah suara menjadi laporan yang
                         lebih terstruktur.
-                    </p>
+                    </p> */}
                 </div>
 
                 {/* Main Card */}
@@ -394,7 +394,7 @@ export default function Report() {
                             </div>
 
                             {/* Timer */}
-                            <p className="mt-7 text-display-xs font-semibold text-primary tabular-nums">
+                            <p className="mt-4 text-display-xs font-semibold text-primary tabular-nums">
                                 {formatTime(seconds)}
                             </p>
 
@@ -403,7 +403,7 @@ export default function Report() {
                                     ? "Silakan ceritakan keluhan Anda."
                                     : audioUrl
                                       ? "Rekaman selesai dan siap dikirim."
-                                      : "Klik tombol mikrofon untuk mulai merekam."}
+                                      : "Klik tombol mikrofon."}
                             </p>
 
                             {/* Audio */}
@@ -431,9 +431,9 @@ export default function Report() {
                         <div className="mt-6">
                             <div className="mb-4 flex items-end justify-between gap-4">
                                 <div>
-                                    <h3 className="text-md font-semibold text-primary">
-                                        Foto Pendukung
-                                    </h3>
+                                            {/* <h3 className="text-md font-semibold text-primary">
+                                                Foto Pendukung
+                                            </h3> */}
 
                                     <p className="mt-1 text-sm text-tertiary">
                                         Tambahkan foto untuk memperjelas laporan Anda.
@@ -450,9 +450,7 @@ export default function Report() {
                                 {uploadedFiles.length < 3 && (
                                     <FileUpload.DropZone
                                         accept="image/png,image/jpeg"
-                                        hint={`Upload PNG atau JPEG (Maks ${
-                                            3 - uploadedFiles.length
-                                        } foto).`}
+                                        hint={`Upload PNG atau JPEG`}
                                         onDropFiles={handleDropFiles}
                                         onDropUnacceptedFiles={
                                             handleDropUnacceptedFiles

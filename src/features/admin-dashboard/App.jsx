@@ -4,6 +4,7 @@ import AdminTickets from "./AdminTickets.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
+import { AdminSessionSkeleton } from "./AdminSkeletons.jsx";
 import { ApiRequestError, getAdminDashboard, getAdminSession, logoutAdmin } from "../../services/api";
 
 const categoryLabel = { MBG: "MBG", INFRASTRUCTURE: "Infrastruktur", GENERAL: "Umum" };
@@ -84,16 +85,11 @@ const mapDashboard = (snapshot) => {
 export default function App() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem("govassist-theme") || "light");
   const [dashboardData, setDashboardData] = useState(emptyData);
   const [currentView, setCurrentView] = useState(() => window.location.hash === "#tickets" ? "tickets" : "dashboard");
   const [staff, setStaff] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("govassist-theme", theme);
-  }, [theme]);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -110,21 +106,21 @@ export default function App() {
     window.location.hash = "dashboard";
   }, []);
 
-  const loadDashboard = useCallback(() =>
-    getAdminDashboard()
+  const loadDashboard = useCallback((showSkeleton = false) => {
+    if (showSkeleton) setDashboardLoading(true);
+    return getAdminDashboard()
       .then((snapshot) => setDashboardData(mapDashboard(snapshot)))
       .catch((error) => {
         if (error instanceof ApiRequestError && error.status === 401) expireSession();
         else console.error("Gagal memuat dashboard admin:", error);
-      }), [expireSession]);
+      })
+      .finally(() => { if (showSkeleton) setDashboardLoading(false); });
+  }, [expireSession]);
 
   useEffect(() => {
     if (!staff) return undefined;
-    loadDashboard();
-    const refreshTimer = window.setInterval(loadDashboard, 30000);
-    return () => {
-      window.clearInterval(refreshTimer);
-    };
+    loadDashboard(true);
+    return undefined;
   }, [loadDashboard, staff]);
 
   useEffect(() => {
@@ -152,7 +148,7 @@ export default function App() {
   };
 
   if (authChecking) {
-    return <div className="auth"><main className="auth__panel"><div className="spinner spinner--primary" aria-label="Memeriksa sesi admin" /></main></div>;
+    return <AdminSessionSkeleton />;
   }
 
   if (!staff) {
@@ -170,15 +166,14 @@ export default function App() {
         <Topbar
           sidebarExpanded={!sidebarCollapsed || sidebarVisible}
           onToggleSidebar={toggleSidebar}
-          theme={theme}
-          onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
           staff={staff}
+          onStaffUpdated={setStaff}
           onLogout={handleLogout}
         />
         {currentView === "tickets" ? (
           <AdminTickets staff={staff} onChanged={loadDashboard} onAuthExpired={expireSession} />
         ) : (
-          <Dashboard theme={theme} data={dashboardData} onViewTickets={() => navigate("tickets")} />
+          <Dashboard data={dashboardData} loading={dashboardLoading} onViewTickets={() => navigate("tickets")} />
         )}
       </main>
     </div>

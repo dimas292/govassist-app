@@ -1,19 +1,20 @@
 import ChartCard from "./ChartCard.jsx";
 import StatCard from "./StatCard.jsx";
 import TicketTable from "./TicketTable.jsx";
+import { DashboardSkeleton } from "./AdminSkeletons.jsx";
 
 function color(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function baseChart(theme) {
+function baseChart() {
   const muted = color("--color-muted-foreground");
   const border = color("--color-border");
   return {
     chart: { toolbar: { show: false }, zoom: { enabled: false }, fontFamily: "inherit", background: "transparent" },
     dataLabels: { enabled: false },
     grid: { borderColor: border, strokeDashArray: 4 },
-    theme: { mode: theme === "dark" ? "dark" : "light" },
+    theme: { mode: "light" },
     xaxis: {
       axisBorder: { color: border },
       axisTicks: { color: border },
@@ -23,8 +24,8 @@ function baseChart(theme) {
   };
 }
 
-function trendOptions(theme, trend) {
-  const base = baseChart(theme);
+function trendOptions(trend) {
+  const base = baseChart();
   const primary = color("--color-primary");
   return {
     ...base,
@@ -61,9 +62,9 @@ function trendOptions(theme, trend) {
   };
 }
 
-function categoryOptions(theme, categorySummary) {
+function categoryOptions(categorySummary) {
   return {
-  ...baseChart(theme),
+  ...baseChart(),
   labels: categorySummary.map((item) => item.label),
   colors: [color("--color-primary"), color("--color-info"), color("--color-success")],
   legend: { position: "bottom" },
@@ -71,16 +72,17 @@ function categoryOptions(theme, categorySummary) {
   };
 }
 
-function statusOptions(theme, statusSummary) {
+function statusOptions(statusSummary) {
   return {
-  ...baseChart(theme),
+  ...baseChart(),
   colors: [color("--color-primary")],
   plotOptions: { bar: { horizontal: true, borderRadius: 8, barHeight: "55%" } },
   xaxis: { categories: statusSummary.map((item) => item.label) },
   };
 }
 
-export default function Dashboard({ theme, data, onViewTickets }) {
+export default function Dashboard({ data, loading, onViewTickets }) {
+  if (loading) return <DashboardSkeleton />;
   const { activities, categorySummary, stats, statusSummary, tickets, trend } = data;
   return (
     <div className="page content">
@@ -93,7 +95,6 @@ export default function Dashboard({ theme, data, onViewTickets }) {
             </p>
           </div>
           <div className="page__action">
-            <button type="button" className="button button--neutral">Ekspor</button>
             <a href="#tickets" className="button button--primary" onClick={onViewTickets}>Lihat Semua Ticket</a>
           </div>
         </header>
@@ -114,7 +115,7 @@ export default function Dashboard({ theme, data, onViewTickets }) {
               <div className="col-span-12 xl:col-span-8">
                 <ChartCard
                   title="Tren Ticket Masuk"
-                  options={trendOptions(theme, trend)}
+                  options={trendOptions(trend)}
                   series={[{ name: "Ticket masuk", data: trend.values }]}
                   height="100%"
                   scroll
@@ -125,7 +126,7 @@ export default function Dashboard({ theme, data, onViewTickets }) {
               <div className="col-span-12 xl:col-span-4">
                 <ChartCard
                   title="Ticket per Kategori"
-                  options={categoryOptions(theme, categorySummary)}
+                  options={categoryOptions(categorySummary)}
                   series={categorySummary.map((item) => item.value)}
                   type="donut"
                   height="100%"
@@ -139,7 +140,7 @@ export default function Dashboard({ theme, data, onViewTickets }) {
               <div className="col-span-12 lg:col-span-6">
                 <ChartCard
                   title="Status Ticket"
-                  options={statusOptions(theme, statusSummary)}
+                  options={statusOptions(statusSummary)}
                   series={[{ name: "Ticket", data: statusSummary.map((item) => item.value) }]}
                   type="bar"
                   height="100%"

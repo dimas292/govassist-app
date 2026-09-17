@@ -3,7 +3,9 @@ import { ArrowLeft } from "@untitledui/icons";
 import { useNavigate, useParams } from "react-router";
 
 import { Badge } from "@/components/base/badges/badges";
+import { Avatar } from "@/components/base/avatar/avatar";
 import { Button } from "@/components/base/buttons/button";
+import { Skeleton } from "@/components/base/skeleton";
 import { getTicket, type TicketDetail, type TicketStatus } from "@/services/api";
 
 type ReportStatus =
@@ -25,6 +27,7 @@ const statusMap: Record<TicketStatus, ReportStatus> = {
 };
 
 const categoryLabel = { MBG: "Makan Bergizi Gratis", INFRASTRUCTURE: "Infrastruktur", GENERAL: "Umum" } as const;
+const staffAvatarUrl = "https://baa.unas.ac.id/wp-content/uploads/2013/07/logo-unas.png";
 
 const activityTitle: Record<TicketStatus, string> = {
     RECEIVED: "Laporan Diterima",
@@ -35,6 +38,14 @@ const activityTitle: Record<TicketStatus, string> = {
 
 const formatDate = (value: string) =>
     new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
+const audioMimeType = (url: string) => {
+    const pathname = new URL(url, window.location.origin).pathname.toLowerCase();
+    if (pathname.endsWith(".ogg")) return "audio/ogg";
+    if (pathname.endsWith(".m4a") || pathname.endsWith(".mp4")) return "audio/mp4";
+    if (pathname.endsWith(".mp3")) return "audio/mpeg";
+    return "audio/webm";
+};
 
 const mapTicket = (ticket: TicketDetail) => {
     const latestReply = ticket.replies.at(-1);
@@ -104,16 +115,58 @@ const getHeaderStatus = (status: ReportStatus) => {
     }
 };
 
+function TrackingDetailSkeleton() {
+    return (
+        <section className="min-h-screen bg-primary py-8 md:py-12" aria-label="Memuat detail laporan" aria-busy="true">
+            <div className="mx-auto w-full max-w-container px-4 md:px-8">
+                <Skeleton className="mb-5 h-5 w-40" />
+                <div className="rounded-2xl border border-secondary bg-primary p-6 shadow-xs md:p-8">
+                    <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex gap-3"><Skeleton className="h-6 w-28 rounded-full" /><Skeleton className="h-5 w-24" /></div>
+                            <Skeleton className="mt-4 h-8 w-full max-w-xl" />
+                            <Skeleton className="mt-3 h-5 w-full max-w-md" />
+                        </div>
+                        <div className="w-full md:w-52"><Skeleton className="h-3 w-28 md:ml-auto" /><Skeleton className="mt-2 h-6 w-full" /></div>
+                    </div>
+                </div>
+                <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+                    <div className="space-y-6">
+                        {[0, 1, 2].map((item) => (
+                            <div key={item} className="rounded-2xl border border-secondary bg-primary p-6">
+                                <Skeleton className="h-5 w-40" />
+                                <Skeleton className="mt-5 h-4 w-full" />
+                                <Skeleton className="mt-3 h-4 w-5/6" />
+                                <Skeleton className="mt-3 h-4 w-2/3" />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="rounded-2xl border border-secondary bg-primary p-6">
+                        <Skeleton className="h-5 w-36" />
+                        {[0, 1, 2, 3].map((item) => (
+                            <div key={item} className="mt-6 flex gap-3"><Skeleton className="size-8 shrink-0 rounded-full" /><div className="flex-1"><Skeleton className="h-4 w-3/4" /><Skeleton className="mt-2 h-3 w-full" /></div></div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
 export default function TrackingDetail() {
     const navigate = useNavigate();
     const { id = "" } = useParams();
     const [report, setReport] = useState<ReturnType<typeof mapTicket> | null>(null);
+    const [audioError, setAudioError] = useState(false);
 
     useEffect(() => {
         let active = true;
         getTicket(id)
             .then((ticket) => {
-                if (active) setReport(mapTicket(ticket));
+                if (active) {
+                    setAudioError(false);
+                    setReport(mapTicket(ticket));
+                }
             })
             .catch((error) => {
                 window.alert(error instanceof Error ? error.message : "Laporan tidak ditemukan.");
@@ -124,7 +177,7 @@ export default function TrackingDetail() {
         };
     }, [id, navigate]);
 
-    if (!report) return null;
+    if (!report) return <TrackingDetailSkeleton />;
 
     const headerStatus = getHeaderStatus(
         report.currentStatus,
@@ -301,9 +354,20 @@ export default function TrackingDetail() {
 
                             <audio
                                 controls
+                                preload="metadata"
+                                crossOrigin="anonymous"
                                 className="mt-5 w-full"
-                                src={report.audioUrl}
-                            />
+                                onError={() => setAudioError(true)}
+                            >
+                                <source src={report.audioUrl} type={audioMimeType(report.audioUrl)} />
+                                Browser tidak mendukung pemutar audio.
+                            </audio>
+
+                            {audioError && (
+                                <p className="mt-3 text-sm text-error-primary" role="alert">
+                                    Rekaman gagal dimuat. Periksa koneksi lalu coba lagi.
+                                </p>
+                            )}
 
                             <p className="mt-5 text-sm leading-7 text-tertiary italic">
                                 "{report.transcript}"
@@ -325,6 +389,8 @@ export default function TrackingDetail() {
                                                 <img
                                                     src={image}
                                                     alt={`Lampiran laporan ${index + 1}`}
+                                                    crossOrigin="anonymous"
+                                                    loading="lazy"
                                                     className="size-full object-cover"
                                                 />
                                             </div>
@@ -468,9 +534,13 @@ export default function TrackingDetail() {
 
                         {report.response ? (
                         <div className="mt-6 flex items-start gap-4">
-                            <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-primary_alt text-sm font-semibold text-brand-600">
-                                DP
-                            </div>
+                            <Avatar
+                                verified
+                                size="md"
+                                alt={report.response.agency}
+                                src={staffAvatarUrl}
+                                className="shrink-0"
+                            />
 
                             <div className="w-full rounded-2xl bg-secondary p-5">
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
+import { Skeleton } from "@/components/base/skeleton";
 import { listTickets, type TicketSummary } from "@/services/api";
 
 type ReportStatus = "Diterima" | "Diverifikasi" | "Diproses" | "Selesai";
@@ -44,10 +45,12 @@ export default function Tracking() {
     const [search, setSearch] = useState("");
     const [submittedSearch, setSubmittedSearch] = useState("");
     const [reports, setReports] = useState<ReportItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
         let active = true;
+        setIsLoading(true);
         listTickets(submittedSearch)
             .then((result) => {
                 if (active) setReports(result.data.map(toReportItem));
@@ -57,6 +60,9 @@ export default function Tracking() {
                     setReports([]);
                     window.alert(error instanceof Error ? error.message : "Data laporan gagal dimuat.");
                 }
+            })
+            .finally(() => {
+                if (active) setIsLoading(false);
             });
         return () => {
             active = false;
@@ -103,12 +109,18 @@ export default function Tracking() {
                         <input
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Masukkan ID Laporan (Contoh: SR-8812)"
+                            placeholder="Masukkan ID Laporan (Contoh: #GA-BA6DF)"
                             className="h-12 w-full bg-transparent text-sm text-primary outline-none placeholder:text-placeholder"
                         />
                     </div>
 
-                    <Button type="submit" size="lg" className="shrink-0 justify-center rounded-xl px-6">
+                    <Button
+                        type="submit"
+                        size="lg"
+                        className="shrink-0 justify-center rounded-xl px-6"
+                        isLoading={isLoading}
+                        showTextWhileLoading
+                    >
                         Cari Sekarang
                     </Button>
                 </form>
@@ -117,8 +129,6 @@ export default function Tracking() {
                 <div className="mt-12">
                     <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <h2 className="text-lg font-semibold text-primary">{submittedSearch ? "Hasil Pencarian" : "Laporan Terbaru"}</h2>
-
-                        {!submittedSearch && <p className="text-xs text-tertiary">Menampilkan 3 laporan publik terakhir</p>}
                     </div>
 
                     {/* Desktop Table */}
@@ -138,8 +148,18 @@ export default function Tracking() {
                                 </tr>
                             </thead>
 
-                            <tbody className="divide-y divide-secondary">
-                                {filteredReports.map((report) => (
+                            <tbody className="divide-y divide-secondary" aria-busy={isLoading}>
+                                {isLoading
+                                    ? Array.from({ length: 4 }, (_, index) => (
+                                          <tr key={index}>
+                                              <td className="px-6 py-5"><Skeleton className="h-4 w-24" /><Skeleton className="mt-2 h-3 w-20" /></td>
+                                              <td className="px-6 py-5"><Skeleton className="h-4 w-48" /><Skeleton className="mt-2 h-3 w-28" /></td>
+                                              <td className="px-6 py-5"><Skeleton className="h-4 w-40" /></td>
+                                              <td className="px-6 py-5"><Skeleton className="h-6 w-24 rounded-full" /></td>
+                                              <td className="px-6 py-5"><Skeleton className="ml-auto h-4 w-16" /></td>
+                                          </tr>
+                                      ))
+                                    : filteredReports.map((report) => (
                                     <tr key={report.id} className="transition hover:bg-secondary">
                                         {/* ID */}
                                         <td className="px-6 py-5">
@@ -205,12 +225,12 @@ export default function Tracking() {
                                             </button>
                                         </td>
                                     </tr>
-                                ))}
+                                      ))}
                             </tbody>
                         </table>
 
                         {/* Empty */}
-                        {filteredReports.length === 0 && (
+                        {!isLoading && filteredReports.length === 0 && (
                             <div className="px-6 py-16 text-center">
                                 <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-secondary">
                                     <svg viewBox="0 0 24 24" fill="none" className="size-6 text-tertiary" stroke="currentColor" strokeWidth="2">
@@ -228,7 +248,17 @@ export default function Tracking() {
 
                     {/* Mobile */}
                     <div className="space-y-3 md:hidden">
-                        {filteredReports.map((report) => (
+                        {isLoading
+                            ? Array.from({ length: 3 }, (_, index) => (
+                                  <div key={index} className="rounded-2xl border border-secondary bg-primary p-5">
+                                      <div className="flex justify-between gap-3"><div><Skeleton className="h-5 w-28" /><Skeleton className="mt-2 h-3 w-20" /></div><Skeleton className="h-6 w-24 rounded-full" /></div>
+                                      <Skeleton className="mt-5 h-5 w-3/4" />
+                                      <Skeleton className="mt-2 h-4 w-32" />
+                                      <Skeleton className="mt-5 h-4 w-2/3" />
+                                      <Skeleton className="mt-5 h-4 w-24" />
+                                  </div>
+                              ))
+                            : filteredReports.map((report) => (
                             <div key={report.id} className="rounded-2xl border border-secondary bg-primary p-5">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
@@ -262,9 +292,9 @@ export default function Tracking() {
                                     <span>→</span>
                                 </button>
                             </div>
-                        ))}
+                              ))}
 
-                        {filteredReports.length === 0 && (
+                        {!isLoading && filteredReports.length === 0 && (
                             <div className="rounded-2xl border border-secondary bg-primary p-8 text-center">
                                 <p className="font-semibold text-primary">Laporan tidak ditemukan</p>
 

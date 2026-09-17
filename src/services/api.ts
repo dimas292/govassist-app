@@ -95,7 +95,15 @@ export const getTicket = async (trackingId: string) =>
 export const getAdminDashboard = async () =>
     (await request<AdminDashboardSnapshot>("/admin/dashboard")).data;
 
-export type AdminStaff = { id: number; name: string; role: "ADMIN" | "OFFICER" };
+export type AdminStaff = {
+    id: number;
+    name: string;
+    role: "ADMIN" | "OFFICER";
+    organization: { id: number; name: string } | null;
+};
+export type AdminTicketSummary = TicketSummary & {
+    replies: Array<{ agency: string; message: string; createdAt: string }>;
+};
 
 export const getAdminSession = async () => (await request<AdminStaff>("/admin/session")).data;
 
@@ -110,10 +118,20 @@ export const loginAdmin = async (username: string, password: string) =>
 
 export const logoutAdmin = async () => request<null>("/admin/session", { method: "DELETE" });
 
+export const updateAdminProfile = async (name: string, organizationName: string) =>
+    (
+        await request<AdminStaff>("/admin/profile", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, organizationName }),
+        })
+    ).data;
+
 export const listAdminTickets = async (query = "") => {
-    const search = new URLSearchParams({ limit: "50" });
+    const search = new URLSearchParams();
     if (query.trim()) search.set("query", query.trim().replace(/^#/, ""));
-    return request<TicketSummary[]>(`/tickets?${search.toString()}`);
+    const suffix = search.size ? `?${search.toString()}` : "";
+    return request<AdminTicketSummary[]>(`/admin/tickets${suffix}`);
 };
 
 export const updateAdminTicketStatus = async (trackingId: string, status: TicketStatus) =>
@@ -124,6 +142,26 @@ export const updateAdminTicketStatus = async (trackingId: string, status: Ticket
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status }),
+            },
+        )
+    ).data;
+
+export type AdminReplyResult = {
+    ticketId: string;
+    agency: string;
+    message: string;
+    createdAt: string;
+    statusChange: { from: TicketStatus; to: TicketStatus } | null;
+};
+
+export const createAdminTicketReply = async (trackingId: string, replyText: string) =>
+    (
+        await request<AdminReplyResult>(
+            `/admin/tickets/${encodeURIComponent(trackingId)}/replies`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ replyText }),
             },
         )
     ).data;
