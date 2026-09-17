@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Send01 } from "@untitledui/icons";
+import { useNavigate } from "react-router";
 
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { FileUpload } from "@/components/application/file-upload/file-upload-base";
+import { LoadingIndicator } from "@/components/application/loading-indicator/loading-indicator";
+import { createTicket } from "@/services/api";
 
 type UploadedImage = {
     id: string;
@@ -15,9 +18,17 @@ type UploadedImage = {
     fileObject: File;
 };
 
-const uploadFile = (file: File, onProgress: (progress: number) => void) => {
-    // Dummy upload
-    // Nanti bisa diganti dengan upload ke Supabase Storage.
+const aiLoadingMessages = [
+    "Mengunggah rekaman dengan aman...",
+    "AI sedang mentranskripsikan suara...",
+    "AI sedang mengenali kategori dan lokasi...",
+    "AI sedang menyusun laporan terstruktur...",
+];
+
+const minimumAiLoadingMs = 6000;
+
+const uploadFile = (_file: File, onProgress: (progress: number) => void) => {
+    // Local selection progress. Files are uploaded together when the report is submitted.
     let progress = 0;
 
     const interval = window.setInterval(() => {
@@ -31,9 +42,13 @@ const uploadFile = (file: File, onProgress: (progress: number) => void) => {
 };
 
 export default function Report() {
+    const navigate = useNavigate();
     const [isRecording, setIsRecording] = useState(false);
     const [seconds, setSeconds] = useState(0);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [aiLoadingStep, setAiLoadingStep] = useState<number | null>(null);
 
     const [uploadedFiles, setUploadedFiles] = useState<UploadedImage[]>([]);
 
@@ -56,6 +71,24 @@ export default function Report() {
             }
         };
     }, [isRecording]);
+
+    useEffect(() => {
+        return () => {
+            recorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+            if (audioUrl) URL.revokeObjectURL(audioUrl);
+        };
+    }, [audioUrl]);
+
+    useEffect(() => {
+        if (!isSubmitting) return;
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [isSubmitting]);
 
     const formatTime = (value: number) => {
         const minutes = Math.floor(value / 60);
@@ -88,6 +121,7 @@ export default function Report() {
                 const url = URL.createObjectURL(blob);
 
                 setAudioUrl(url);
+                setAudioBlob(blob);
 
                 stream.getTracks().forEach((track) => {
                     track.stop();
@@ -97,7 +131,9 @@ export default function Report() {
             recorderRef.current = recorder;
 
             setSeconds(0);
+            if (audioUrl) URL.revokeObjectURL(audioUrl);
             setAudioUrl(null);
+            setAudioBlob(null);
             setIsRecording(true);
 
             recorder.start();
@@ -117,12 +153,10 @@ export default function Report() {
         }
 
         setAudioUrl(null);
+        setAudioBlob(null);
         setSeconds(0);
     };
 
-    // =========================
-    // FOTO PENDUKUNG
-    // =========================
 
     const handleDropFiles = (files: FileList) => {
         const remainingSlots = 3 - uploadedFiles.length;
@@ -200,19 +234,79 @@ export default function Report() {
         });
     };
 
-    const submitReport = () => {
-        if (!audioUrl) return;
+    const submitReport = async () => {
+        if (!audioBlob || isSubmitting) return;
+        const startedAt = Date.now();
+        let loadingTimer: number | undefined;
 
-        console.log("Kirim laporan");
-        console.log("Foto:", uploadedFiles.map((file) => file.fileObject));
+        setIsSubmitting(true);
+        setAiLoadingStep(0);
+        loadingTimer = window.setInterval(() => {
+            setAiLoadingStep((current) => Math.min((current ?? 0) + 1, aiLoadingMessages.length - 1));
+        }, 1800);
+
+        try {
+            const ticket = await createTicket(
+                audioBlob,
+                uploadedFiles.map((file) => file.fileObject),
+            );
+
+            const remainingDelay = minimumAiLoadingMs - (Date.now() - startedAt);
+            if (remainingDelay > 0) {
+                await new Promise((resolve) => window.setTimeout(resolve, remainingDelay));
+            }
+
+            navigate(`/tracking/${ticket.id}`);
+        } catch (error) {
+            window.alert(error instanceof Error ? error.message : "Laporan gagal dikirim.");
+        } finally {
+            if (loadingTimer) window.clearInterval(loadingTimer);
+            setAiLoadingStep(null);
+            setIsSubmitting(false);
+        }
     };
 
     return (
-        <section className="min-h-screen bg-primary py-4 sm:py-6">
+        <section className="min-h-screen bg-primary sm:py-6">
+            {isSubmitting && aiLoadingStep !== null && (
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="ai-generation-title"
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/30 px-4 backdrop-blur-md"
+                >
+                    <div className="w-full max-w-md rounded-3xl border border-secondary bg-primary p-7 text-center shadow-2xl sm:p-8">
+                        <Badge size="sm" type="pill-color" color="brand">
+                            AI POWER MODE
+                        </Badge>
+
+                        <div className="mt-7">
+                            <LoadingIndicator type="dot-circle" size="lg" />
+                        </div>
+
+                        <p aria-live="polite" className="mt-3 min-h-6 text-sm font-medium text-brand-600">
+                            {aiLoadingMessages[aiLoadingStep]}
+                        </p>
+
+                        <div className="mt-6 flex justify-center gap-2" aria-hidden="true">
+                            {aiLoadingMessages.map((_, index) => (
+                                <span
+                                    key={index}
+                                    className={`h-1.5 rounded-full transition-all duration-500 ${
+                                        index <= aiLoadingStep ? "w-8 bg-brand-600" : "w-3 bg-tertiary"
+                                    }`}
+                                />
+                            ))}
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
             <div className="mx-auto w-full max-w-container px-4 md:px-8">
                 {/* Header */}
                 <div className="mb-10">
-                    <h1 className="mt-5 text-display-sm font-semibold text-primary md:text-display-md">
+                    {/* <h1 className="mt-5 text-display-sm font-semibold text-primary md:text-display-md">
                         Buat Laporan Baru
                     </h1>
 
@@ -220,7 +314,7 @@ export default function Report() {
                         Sampaikan aspirasi atau keluhan Anda melalui rekaman suara.
                         GovAssist akan membantu mengubah suara menjadi laporan yang
                         lebih terstruktur.
-                    </p>
+                    </p> */}
                 </div>
 
                 {/* Main Card */}
@@ -300,7 +394,7 @@ export default function Report() {
                             </div>
 
                             {/* Timer */}
-                            <p className="mt-7 text-display-xs font-semibold text-primary tabular-nums">
+                            <p className="mt-4 text-display-xs font-semibold text-primary tabular-nums">
                                 {formatTime(seconds)}
                             </p>
 
@@ -309,7 +403,7 @@ export default function Report() {
                                     ? "Silakan ceritakan keluhan Anda."
                                     : audioUrl
                                       ? "Rekaman selesai dan siap dikirim."
-                                      : "Klik tombol mikrofon untuk mulai merekam."}
+                                      : "Klik tombol mikrofon."}
                             </p>
 
                             {/* Audio */}
@@ -337,9 +431,9 @@ export default function Report() {
                         <div className="mt-6">
                             <div className="mb-4 flex items-end justify-between gap-4">
                                 <div>
-                                    <h3 className="text-md font-semibold text-primary">
-                                        Foto Pendukung
-                                    </h3>
+                                            {/* <h3 className="text-md font-semibold text-primary">
+                                                Foto Pendukung
+                                            </h3> */}
 
                                     <p className="mt-1 text-sm text-tertiary">
                                         Tambahkan foto untuk memperjelas laporan Anda.
@@ -356,9 +450,7 @@ export default function Report() {
                                 {uploadedFiles.length < 3 && (
                                     <FileUpload.DropZone
                                         accept="image/png,image/jpeg"
-                                        hint={`Upload PNG atau JPEG (Maks ${
-                                            3 - uploadedFiles.length
-                                        } foto).`}
+                                        hint={`Upload PNG atau JPEG`}
                                         onDropFiles={handleDropFiles}
                                         onDropUnacceptedFiles={
                                             handleDropUnacceptedFiles
@@ -405,11 +497,22 @@ export default function Report() {
                                 size="xl"
                                 iconLeading={Send01}
                                 className="w-full justify-center sm:w-auto sm:min-w-64"
-                                isDisabled={!audioUrl || isRecording}
+                                isDisabled={!audioBlob || isRecording || isSubmitting}
+                                isLoading={isSubmitting}
+                                showTextWhileLoading
                                 onClick={submitReport}
                             >
-                                Kirim Laporan
+                                {isSubmitting ? "AI sedang memproses..." : "Kirim Laporan"}
                             </Button>
+
+                            {aiLoadingStep !== null && (
+                                <p
+                                    aria-live="polite"
+                                    className="text-center text-sm font-medium text-brand-600"
+                                >
+                                    {aiLoadingMessages[aiLoadingStep]}
+                                </p>
+                            )}
                         </div>
 
                         <div className="mt-4 flex w-full justify-center">

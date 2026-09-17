@@ -1,4 +1,27 @@
-# Untitled UI starter kit for Vite
+# GovAssist Web
+
+Web publik GovAssist untuk merekam laporan suara, mengirim foto pendukung, dan melacak status ticket tanpa login.
+
+## API
+
+Salin `.env.example` ke `.env` bila API tidak menggunakan URL default.
+
+```env
+VITE_API_URL=http://localhost:3000/api
+```
+
+Jalankan API sebelum mengirim atau melacak laporan.
+
+Dashboard admin berada dalam satu feature folder `src/features/admin-dashboard` dan tersedia pada route:
+
+```text
+/admin
+```
+
+Route admin dimuat terpisah agar ApexCharts dan stylesheet dashboard tidak menambah beban bundle halaman publik.
+Data kartu, grafik, ticket terbaru, dan aktivitas berasal dari `GET /api/admin/dashboard` dan diperbarui setiap 30 detik.
+
+## Original UI foundation
 
 This is an official Untitled UI starter kit for Vite. Kickstart your Untitled UI project with Vite in seconds.
 

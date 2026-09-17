@@ -1,8 +1,12 @@
+import { useEffect, useState } from "react";
 import { ArrowLeft } from "@untitledui/icons";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import { Badge } from "@/components/base/badges/badges";
+import { Avatar } from "@/components/base/avatar/avatar";
 import { Button } from "@/components/base/buttons/button";
+import { Skeleton } from "@/components/base/skeleton";
+import { getTicket, type TicketDetail, type TicketStatus } from "@/services/api";
 
 type ReportStatus =
     | "received"
@@ -15,105 +19,72 @@ type TimelineStatus =
     | "current"
     | "waiting";
 
-const statusOrder: ReportStatus[] = [
-    "received",
-    "verified",
-    "process",
-    "completed",
-];
+const statusMap: Record<TicketStatus, ReportStatus> = {
+    RECEIVED: "received",
+    VERIFIED: "verified",
+    IN_PROGRESS: "process",
+    COMPLETED: "completed",
+};
 
-const report = {
-    id: "GA-1028",
+const categoryLabel = { MBG: "Makan Bergizi Gratis", INFRASTRUCTURE: "Infrastruktur", GENERAL: "Umum" } as const;
+const staffAvatarUrl = "https://baa.unas.ac.id/wp-content/uploads/2013/07/logo-unas.png";
 
-    title: "Lampu Jalan Mati di Kawasan Pasar Induk",
+const activityTitle: Record<TicketStatus, string> = {
+    RECEIVED: "Laporan Diterima",
+    VERIFIED: "Laporan Terverifikasi",
+    IN_PROGRESS: "Laporan Diproses",
+    COMPLETED: "Laporan Selesai",
+};
 
-    // ===============================
-    // GANTI STATUS DI SINI
-    // received | verified | process | completed
-    // ===============================
-    currentStatus: "process" as ReportStatus,
+const formatDate = (value: string) =>
+    new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-    estimatedDate: "25 Sept 2026",
+const audioMimeType = (url: string) => {
+    const pathname = new URL(url, window.location.origin).pathname.toLowerCase();
+    if (pathname.endsWith(".ogg")) return "audio/ogg";
+    if (pathname.endsWith(".m4a") || pathname.endsWith(".mp4")) return "audio/mp4";
+    if (pathname.endsWith(".mp3")) return "audio/mpeg";
+    return "audio/webm";
+};
 
-    address: "Jl. Merdeka No. 12, Jakarta Pusat",
+const mapTicket = (ticket: TicketDetail) => {
+    const latestReply = ticket.replies.at(-1);
 
-    category: "Infrastruktur Jalan",
-
-    aiLocation: "Jl. Raya Pasar Induk",
-
-    summary:
-        "Lampu penerangan padam total selama 3 hari, membahayakan pengendara motor di malam hari.",
-
-    transcript:
-        "Lampu penerangan di sepanjang jalan raya ke arah pasar induk mati total sejak 3 hari yang lalu, ini sangat berbahaya bagi pengendara motor di malam hari. Mohon segera diperbaiki.",
-
-    images: [
-        "/images/report/lampu-1.jpg",
-        "/images/report/lampu-2.jpg",
-    ],
-
-    timeline: [
-        {
-            key: "received" as ReportStatus,
-            title: "Diterima",
-            date: "12 Sept 2026, 14:20",
-            description:
-                "Sistem berhasil memvalidasi laporan Anda.",
-        },
-        {
-            key: "verified" as ReportStatus,
-            title: "Verifikasi",
-            date: "14 Sept 2026, 09:15",
-            description:
-                "Laporan diteruskan ke Dinas terkait.",
-        },
-        {
-            key: "process" as ReportStatus,
-            title: "Proses",
-            date: "15 Sept 2026, 11:30",
-            description:
-                "Sedang dalam peninjauan lapangan.",
-        },
-        {
-            key: "completed" as ReportStatus,
-            title: "Selesai",
-            date: "Menunggu tindakan",
-            description: "",
-        },
-    ],
-
-    response: {
-        agency: "Dinas Penerangan Jalan",
-        date: "15 SEPT 2026",
-        message:
-            "Terima kasih atas laporannya. Tim teknis kami telah menjadwalkan pengecekan di lokasi tersebut besok pagi pukul 09:00 WIB.",
-    },
+    return {
+        id: ticket.id,
+        title: ticket.title,
+        currentStatus: statusMap[ticket.status],
+        estimatedDate: "Menunggu pembaruan petugas",
+        address: ticket.location || "Lokasi tidak terdeteksi",
+        category: categoryLabel[ticket.category],
+        aiLocation: ticket.location || "Lokasi tidak terdeteksi",
+        summary: ticket.description,
+        transcript: ticket.transcript || ticket.description,
+        audioUrl: ticket.audioUrl,
+        images: ticket.attachments.map((attachment) => attachment.url),
+        timeline: ticket.activities.map((activity, index) => ({
+            key: `${activity.toStatus}-${activity.createdAt}-${index}`,
+            title: activityTitle[activity.toStatus],
+            date: formatDate(activity.createdAt),
+            description: activity.description || "Status laporan diperbarui.",
+            actor: activity.actor,
+        })),
+        response: latestReply
+            ? {
+                  agency: latestReply.agency,
+                  date: formatDate(latestReply.createdAt).toUpperCase(),
+                  message: latestReply.message,
+              }
+            : null,
+    };
 };
 
 const getTimelineStatus = (
-    stepKey: ReportStatus,
+    index: number,
+    total: number,
     currentStatus: ReportStatus,
 ): TimelineStatus => {
-    const stepIndex = statusOrder.indexOf(stepKey);
-    const currentIndex = statusOrder.indexOf(currentStatus);
-
-    // Kalau sudah selesai, semua hijau
-    if (currentStatus === "completed") {
-        return "done";
-    }
-
-    // Tahap yang sudah dilewati
-    if (stepIndex < currentIndex) {
-        return "done";
-    }
-
-    // Tahap yang sedang berjalan
-    if (stepIndex === currentIndex) {
-        return "current";
-    }
-
-    // Tahap yang belum dikerjakan
-    return "waiting";
+    return currentStatus === "completed" || index < total - 1 ? "done" : "current";
 };
 
 const getHeaderStatus = (status: ReportStatus) => {
@@ -144,8 +115,69 @@ const getHeaderStatus = (status: ReportStatus) => {
     }
 };
 
+function TrackingDetailSkeleton() {
+    return (
+        <section className="min-h-screen bg-primary py-8 md:py-12" aria-label="Memuat detail laporan" aria-busy="true">
+            <div className="mx-auto w-full max-w-container px-4 md:px-8">
+                <Skeleton className="mb-5 h-5 w-40" />
+                <div className="rounded-2xl border border-secondary bg-primary p-6 shadow-xs md:p-8">
+                    <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex gap-3"><Skeleton className="h-6 w-28 rounded-full" /><Skeleton className="h-5 w-24" /></div>
+                            <Skeleton className="mt-4 h-8 w-full max-w-xl" />
+                            <Skeleton className="mt-3 h-5 w-full max-w-md" />
+                        </div>
+                        <div className="w-full md:w-52"><Skeleton className="h-3 w-28 md:ml-auto" /><Skeleton className="mt-2 h-6 w-full" /></div>
+                    </div>
+                </div>
+                <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+                    <div className="space-y-6">
+                        {[0, 1, 2].map((item) => (
+                            <div key={item} className="rounded-2xl border border-secondary bg-primary p-6">
+                                <Skeleton className="h-5 w-40" />
+                                <Skeleton className="mt-5 h-4 w-full" />
+                                <Skeleton className="mt-3 h-4 w-5/6" />
+                                <Skeleton className="mt-3 h-4 w-2/3" />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="rounded-2xl border border-secondary bg-primary p-6">
+                        <Skeleton className="h-5 w-36" />
+                        {[0, 1, 2, 3].map((item) => (
+                            <div key={item} className="mt-6 flex gap-3"><Skeleton className="size-8 shrink-0 rounded-full" /><div className="flex-1"><Skeleton className="h-4 w-3/4" /><Skeleton className="mt-2 h-3 w-full" /></div></div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
 export default function TrackingDetail() {
     const navigate = useNavigate();
+    const { id = "" } = useParams();
+    const [report, setReport] = useState<ReturnType<typeof mapTicket> | null>(null);
+    const [audioError, setAudioError] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        getTicket(id)
+            .then((ticket) => {
+                if (active) {
+                    setAudioError(false);
+                    setReport(mapTicket(ticket));
+                }
+            })
+            .catch((error) => {
+                window.alert(error instanceof Error ? error.message : "Laporan tidak ditemukan.");
+                navigate("/tracking", { replace: true });
+            });
+        return () => {
+            active = false;
+        };
+    }, [id, navigate]);
+
+    if (!report) return <TrackingDetailSkeleton />;
 
     const headerStatus = getHeaderStatus(
         report.currentStatus,
@@ -154,9 +186,6 @@ export default function TrackingDetail() {
     return (
         <section className="min-h-screen bg-primary py-8 md:py-12">
             <div className="mx-auto w-full max-w-container px-4 md:px-8">
-                {/* =========================================
-                    BACK BUTTON
-                ========================================== */}
                 <div className="mb-5">
                     <Button
                         color="link-gray"
@@ -167,10 +196,6 @@ export default function TrackingDetail() {
                         Kembali ke Tracking
                     </Button>
                 </div>
-
-                {/* =========================================
-                    HEADER REPORT
-                ========================================== */}
                 <div className="rounded-2xl border border-secondary bg-primary p-6 shadow-xs md:p-8">
                     <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -193,7 +218,6 @@ export default function TrackingDetail() {
                             </h1>
 
                             <div className="mt-3 flex items-center gap-2 text-sm text-tertiary">
-                                {/* Location Icon */}
                                 <svg
                                     viewBox="0 0 24 24"
                                     fill="none"
@@ -204,14 +228,12 @@ export default function TrackingDetail() {
                                     strokeLinejoin="round"
                                 >
                                     <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
-
                                     <circle
                                         cx="12"
                                         cy="10"
                                         r="2"
                                     />
                                 </svg>
-
                                 <span>
                                     {report.address}
                                 </span>
@@ -252,11 +274,8 @@ export default function TrackingDetail() {
                                     strokeLinejoin="round"
                                 >
                                     <path d="M6 2h9l5 5v15H6z" />
-
                                     <path d="M14 2v6h6" />
-
                                     <path d="M9 13h6" />
-
                                     <path d="M9 17h6" />
                                 </svg>
 
@@ -273,113 +292,36 @@ export default function TrackingDetail() {
                                 ✦ AI SUMMARIZED
                             </Badge>
                         </div>
-
-                        {/* =================================
-                            CATEGORY + LOCATION
-                        ================================== */}
                         <div className="mt-6 grid gap-4 md:grid-cols-2">
-                            {/* Category */}
-                            <div className="rounded-xl border border-brand-200 bg-secondary p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 text-brand-600">
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            className="size-5"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <rect
-                                                x="3"
-                                                y="3"
-                                                width="7"
-                                                height="7"
-                                                rx="1"
-                                            />
-
-                                            <rect
-                                                x="14"
-                                                y="3"
-                                                width="7"
-                                                height="7"
-                                                rx="1"
-                                            />
-
-                                            <rect
-                                                x="3"
-                                                y="14"
-                                                width="7"
-                                                height="7"
-                                                rx="1"
-                                            />
-
-                                            <rect
-                                                x="14"
-                                                y="14"
-                                                width="7"
-                                                height="7"
-                                                rx="1"
-                                            />
-                                        </svg>
-                                    </div>
-
-                                    <div>
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                                            Kategori
-                                            (Identifikasi AI)
-                                        </p>
-
-                                        <p className="mt-2 text-sm font-semibold text-primary">
-                                            {report.category}
-                                        </p>
-                                    </div>
+                            {/* Category - Menggunakan Badge */}
+                            <div className="rounded-xl border border-brand-200 bg-secondary p-4 flex flex-col justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                                        Kategori (Identifikasi AI)
+                                    </p>
+                                </div>
+                                <div className="mt-3">
+                                    <Badge size="md" type="pill-color" color="brand">
+                                        {report.category}
+                                    </Badge>
                                 </div>
                             </div>
 
-                            {/* AI Location */}
-                            <div className="rounded-xl border border-brand-200 bg-secondary p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 text-brand-600">
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            className="size-5"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
-
-                                            <circle
-                                                cx="12"
-                                                cy="10"
-                                                r="2"
-                                            />
-                                        </svg>
-                                    </div>
-
-                                    <div>
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                                            Lokasi
-                                            (Deteksi AI)
-                                        </p>
-
-                                        <p className="mt-2 text-sm font-semibold text-primary">
-                                            {
-                                                report.aiLocation
-                                            }
-                                        </p>
-                                    </div>
+                            {/* AI Location - Menggunakan Badge */}
+                            <div className="rounded-xl border border-brand-200 bg-secondary p-4 flex flex-col justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                                        Lokasi (Deteksi AI)
+                                    </p>
+                                </div>
+                                <div className="mt-3">
+                                    <Badge size="md" type="pill-color" color="gray">
+                                        {report.aiLocation}
+                                    </Badge>
                                 </div>
                             </div>
                         </div>
 
-                        {/* =================================
-                            SUMMARY
-                        ================================== */}
                         <div className="mt-4 rounded-xl border border-brand-200 bg-secondary p-5">
                             <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
                                 Ringkasan Masalah
@@ -389,10 +331,6 @@ export default function TrackingDetail() {
                                 {report.summary}
                             </p>
                         </div>
-
-                        {/* =================================
-                            AUDIO
-                        ================================== */}
                         <div className="mt-4 rounded-xl bg-secondary p-5 md:p-6">
                             <div className="flex items-center gap-2">
                                 <svg
@@ -405,9 +343,7 @@ export default function TrackingDetail() {
                                     strokeLinejoin="round"
                                 >
                                     <path d="M11 5 6 9H2v6h4l5 4z" />
-
                                     <path d="M15 9a5 5 0 0 1 0 6" />
-
                                     <path d="M18 6a9 9 0 0 1 0 12" />
                                 </svg>
 
@@ -418,18 +354,25 @@ export default function TrackingDetail() {
 
                             <audio
                                 controls
+                                preload="metadata"
+                                crossOrigin="anonymous"
                                 className="mt-5 w-full"
-                                src="/audio/report-demo.webm"
-                            />
+                                onError={() => setAudioError(true)}
+                            >
+                                <source src={report.audioUrl} type={audioMimeType(report.audioUrl)} />
+                                Browser tidak mendukung pemutar audio.
+                            </audio>
+
+                            {audioError && (
+                                <p className="mt-3 text-sm text-error-primary" role="alert">
+                                    Rekaman gagal dimuat. Periksa koneksi lalu coba lagi.
+                                </p>
+                            )}
 
                             <p className="mt-5 text-sm leading-7 text-tertiary italic">
                                 "{report.transcript}"
                             </p>
                         </div>
-
-                        {/* =================================
-                            PHOTOS
-                        ================================== */}
                         {report.images.length > 0 && (
                             <div className="mt-6">
                                 <h3 className="text-sm font-semibold uppercase tracking-wide text-primary">
@@ -444,10 +387,10 @@ export default function TrackingDetail() {
                                                 className="aspect-[16/9] overflow-hidden rounded-xl border border-secondary bg-secondary"
                                             >
                                                 <img
-                                                    src={
-                                                        image
-                                                    }
+                                                    src={image}
                                                     alt={`Lampiran laporan ${index + 1}`}
+                                                    crossOrigin="anonymous"
+                                                    loading="lazy"
                                                     className="size-full object-cover"
                                                 />
                                             </div>
@@ -476,7 +419,8 @@ export default function TrackingDetail() {
 
                                     const timelineStatus =
                                         getTimelineStatus(
-                                            item.key,
+                                            index,
+                                            report.timeline.length,
                                             report.currentStatus,
                                         );
 
@@ -485,41 +429,43 @@ export default function TrackingDetail() {
                                             key={item.key}
                                             className="relative flex gap-4 pb-8 last:pb-0"
                                         >
-                                            {/* =================
-                                                CONNECTOR LINE
-                                            ================== */}
                                             {!isLast && (
                                                 <div
-                                                    className={`absolute left-[7px] top-4 h-full w-px ${
-                                                        timelineStatus ===
-                                                        "done"
-                                                            ? "bg-success-500"
-                                                            : "bg-secondary"
-                                                    }`}
+                                                    className="absolute left-[7.5px] top-4 bottom-[-0.25rem] w-0.5 -translate-x-1/2 rounded-full"
+                                                    style={{
+                                                        backgroundColor:
+                                                            timelineStatus === "done"
+                                                                ? "#17b26a"
+                                                                : "#84adff",
+                                                    }}
+                                                    aria-hidden="true"
                                                 />
                                             )}
 
-                                            {/* =================
-                                                STATUS DOT
-                                            ================== */}
                                             <div
-                                                className={`relative z-10 mt-1 size-4 shrink-0 rounded-full ${
-                                                    timelineStatus ===
-                                                    "done"
-                                                        ? "bg-success-600"
-                                                        : timelineStatus ===
-                                                            "current"
-                                                          ? "bg-warning-500"
-                                                          : "border-2 border-secondary bg-primary"
+                                                className={`relative z-10 mt-1 size-4 shrink-0 rounded-full flex items-center justify-center ${
+                                                    timelineStatus === "waiting"
+                                                        ? "border-2 border-secondary bg-primary"
+                                                        : ""
                                                 }`}
+                                                style={
+                                                    timelineStatus === "waiting"
+                                                        ? undefined
+                                                        : {
+                                                              backgroundColor:
+                                                                  timelineStatus === "done"
+                                                                      ? "#079455"
+                                                                      : "#f79009",
+                                                          }
+                                                }
                                             >
-                                                {/* Check icon */}
                                                 {timelineStatus ===
                                                     "done" && (
                                                     <svg
                                                         viewBox="0 0 24 24"
                                                         fill="none"
-                                                        className="absolute inset-0 size-full p-[2px] text-white"
+                                                        className="size-3"
+                                                        style={{ color: "#ffffff" }}
                                                         stroke="currentColor"
                                                         strokeWidth="3"
                                                         strokeLinecap="round"
@@ -530,9 +476,6 @@ export default function TrackingDetail() {
                                                 )}
                                             </div>
 
-                                            {/* =================
-                                                CONTENT
-                                            ================== */}
                                             <div className="min-w-0">
                                                 <p
                                                     className={`text-sm font-semibold uppercase ${
@@ -542,9 +485,7 @@ export default function TrackingDetail() {
                                                             : "text-primary"
                                                     }`}
                                                 >
-                                                    {
-                                                        item.title
-                                                    }
+                                                    {item.title}
                                                 </p>
 
                                                 <p
@@ -567,11 +508,12 @@ export default function TrackingDetail() {
                                                                 : "text-tertiary"
                                                         }`}
                                                     >
-                                                        {
-                                                            item.description
-                                                        }
+                                                        {item.description}
                                                     </p>
                                                 )}
+                                                <p className="mt-2 text-xs font-medium text-quaternary">
+                                                    Oleh {item.actor}
+                                                </p>
                                             </div>
                                         </div>
                                     );
@@ -590,13 +532,16 @@ export default function TrackingDetail() {
                             Tanggapan Petugas
                         </h2>
 
+                        {report.response ? (
                         <div className="mt-6 flex items-start gap-4">
-                            {/* Agency Avatar */}
-                            <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-primary_alt text-sm font-semibold text-brand-600">
-                                DP
-                            </div>
+                            <Avatar
+                                verified
+                                size="md"
+                                alt={report.response.agency}
+                                src={staffAvatarUrl}
+                                className="shrink-0"
+                            />
 
-                            {/* Response */}
                             <div className="w-full rounded-2xl bg-secondary p-5">
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                     <p className="text-sm font-semibold text-primary">
@@ -622,6 +567,11 @@ export default function TrackingDetail() {
                                 </p>
                             </div>
                         </div>
+                        ) : (
+                            <div className="mt-6 rounded-2xl bg-secondary p-5 text-sm text-tertiary">
+                                Belum ada tanggapan petugas.
+                            </div>
+                        )}
                     </div>
 
                     <div />

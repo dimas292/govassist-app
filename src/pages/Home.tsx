@@ -70,13 +70,18 @@ export default function Home() {
                                 <div className="mt-3 flex items-center rounded-xl bg-gray-100 px-3 py-2">
                                     <input
                                         type="text"
+                                        value={reportId}
+                                        onChange={(event) => setReportId(event.target.value)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter") handleTracking();
+                                        }}
                                         placeholder="Masukkan ID..."
                                         className="min-w-0 flex-1 bg-transparent px-1 text-sm text-gray-900 outline-none placeholder:text-gray-400"
                                     />
 
                                     <button
                                         type="button"
-                                        onClick={() => navigate("/tracking")}
+                                        onClick={handleTracking}
                                         className="ml-2 flex size-9 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50"
                                     >
                                         <ArrowRight className="size-5" />
