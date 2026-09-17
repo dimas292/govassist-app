@@ -6,12 +6,19 @@ import { BadgeWithDot } from "@/components/base/badges/badges";
 
 export default function Home() {
     const navigate = useNavigate();
-    const [reportId, setReportId] = useState("");
+
+    const [search, setSearch] = useState("");
 
     const handleTracking = () => {
-        if (!reportId.trim()) return;
+        const reportId = search.trim().toUpperCase();
 
-        navigate(`/tracking/${reportId.trim()}`);
+        if (!reportId) return;
+
+        navigate("/tracking", {
+            state: {
+                search: reportId,
+            },
+        });
     };
 
     return (
@@ -70,8 +77,8 @@ export default function Home() {
                                 <div className="mt-3 flex items-center rounded-xl bg-gray-100 px-3 py-2">
                                     <input
                                         type="text"
-                                        value={reportId}
-                                        onChange={(event) => setReportId(event.target.value)}
+                                        value={search}
+                                        onChange={(event) => setSearch(event.target.value)}
                                         onKeyDown={(event) => {
                                             if (event.key === "Enter") handleTracking();
                                         }}
