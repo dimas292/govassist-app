@@ -90,7 +90,7 @@ export default function Home() {
                                     <button
                                         type="button"
                                         onClick={handleTracking}
-                                        disabled={!reportId.trim()}
+                                        disabled={!search.trim()}
                                         aria-label="Cek status laporan"
                                         className="ml-2 flex size-9 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40"
                                     >

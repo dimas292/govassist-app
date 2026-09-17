@@ -52,7 +52,7 @@ export default function AdminLogin({ onAuthenticated }) {
       </main>
       <aside className="auth__aside">
         <span className="auth__brand">
-          <span className="auth__brand-mark"><BrandMark /></span>
+          {/* <span className="auth__brand-mark"><BrandMark /></span> */}
           <span className="auth__brand-name">GovAssist</span>
         </span>
       </aside>

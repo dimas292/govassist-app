@@ -27,7 +27,7 @@ const statusMap: Record<TicketStatus, ReportStatus> = {
 };
 
 const categoryLabel = { MBG: "Makan Bergizi Gratis", INFRASTRUCTURE: "Infrastruktur", GENERAL: "Umum" } as const;
-const staffAvatarUrl = "https://baa.unas.ac.id/wp-content/uploads/2013/07/logo-unas.png";
+const defaultStaffAvatarUrl = "https://baa.unas.ac.id/wp-content/uploads/2013/07/logo-unas.png";
 
 const activityTitle: Record<TicketStatus, string> = {
     RECEIVED: "Laporan Diterima",
@@ -48,8 +48,6 @@ const audioMimeType = (url: string) => {
 };
 
 const mapTicket = (ticket: TicketDetail) => {
-    const latestReply = ticket.replies.at(-1);
-
     return {
         id: ticket.id,
         title: ticket.title,
@@ -69,13 +67,13 @@ const mapTicket = (ticket: TicketDetail) => {
             description: activity.description || "Status laporan diperbarui.",
             actor: activity.actor,
         })),
-        response: latestReply
-            ? {
-                  agency: latestReply.agency,
-                  date: formatDate(latestReply.createdAt).toUpperCase(),
-                  message: latestReply.message,
-              }
-            : null,
+        responses: ticket.replies.map((reply) => ({
+            agency: reply.agency,
+            avatarUrl: reply.avatarUrl || defaultStaffAvatarUrl,
+            date: formatDate(reply.createdAt).toUpperCase(),
+            message: reply.message,
+            attachments: reply.attachments,
+        })),
     };
 };
 
@@ -532,41 +530,44 @@ export default function TrackingDetail() {
                             Tanggapan Petugas
                         </h2>
 
-                        {report.response ? (
-                        <div className="mt-6 flex items-start gap-4">
-                            <Avatar
-                                verified
-                                size="md"
-                                alt={report.response.agency}
-                                src={staffAvatarUrl}
-                                className="shrink-0"
-                            />
+                        {report.responses.length ? (
+                            <div className="mt-6 space-y-5">
+                                {report.responses.map((response, index) => (
+                                    <div className="flex items-start gap-4" key={`${response.date}-${index}`}>
+                                        <Avatar
+                                            verified
+                                            size="md"
+                                            alt={response.agency}
+                                            src={response.avatarUrl}
+                                            className="shrink-0"
+                                        />
 
-                            <div className="w-full rounded-2xl bg-secondary p-5">
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <p className="text-sm font-semibold text-primary">
-                                        {
-                                            report.response
-                                                .agency
-                                        }
-                                    </p>
+                                        <div className="w-full min-w-0 rounded-2xl bg-secondary p-5">
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <p className="text-sm font-semibold text-primary">{response.agency}</p>
+                                                <p className="text-xs font-semibold text-quaternary">{response.date}</p>
+                                            </div>
 
-                                    <p className="text-xs font-semibold text-quaternary">
-                                        {
-                                            report.response
-                                                .date
-                                        }
-                                    </p>
-                                </div>
+                                            <p className="mt-3 text-sm leading-6 text-tertiary">{response.message}</p>
 
-                                <p className="mt-3 text-sm leading-6 text-tertiary">
-                                    {
-                                        report.response
-                                            .message
-                                    }
-                                </p>
+                                            {response.attachments.length > 0 && (
+                                                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                                    {response.attachments.map((attachment) => (
+                                                        <a href={attachment.url} target="_blank" rel="noreferrer" key={attachment.url}>
+                                                            <img
+                                                                className="aspect-square w-full rounded-xl object-cover"
+                                                                src={attachment.url}
+                                                                alt="Lampiran tanggapan petugas"
+                                                                loading="lazy"
+                                                            />
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        </div>
                         ) : (
                             <div className="mt-6 rounded-2xl bg-secondary p-5 text-sm text-tertiary">
                                 Belum ada tanggapan petugas.

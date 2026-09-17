@@ -62,14 +62,6 @@ export default function Sidebar({ collapsed, currentView, onNavigate, ticketCoun
     <aside className="sidebar sidebar--lg sidebar--app" data-stisla-sidebar data-collapsed={collapsed || undefined}>
       <header className="sidebar__header">
         <a className="sidebar__brand" href="#dashboard" onClick={() => onNavigate("dashboard")}>
-          <Icon>
-            <path
-              fill="currentColor"
-              d="M12 1.5l3.4 7.1 7.1 3.4-7.1 3.4-3.4 7.1-3.4-7.1L1.5 12l7.1-3.4z"
-              opacity=".45"
-            />
-            <path fill="currentColor" d="M12 1.5l3.4 7.1L12 12 8.6 8.6z" />
-          </Icon>
           <span>GovAssist</span>
         </a>
       </header>

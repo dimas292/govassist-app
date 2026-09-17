@@ -44,7 +44,13 @@ export type TicketDetail = TicketSummary & {
         createdAt: string;
         actor: string;
     }>;
-    replies: Array<{ agency: string; message: string; createdAt: string }>;
+    replies: Array<{
+        agency: string;
+        avatarUrl: string | null;
+        message: string;
+        createdAt: string;
+        attachments: Array<{ url: string; createdAt: string }>;
+    }>;
 };
 
 export type AdminDashboardSnapshot = {
@@ -99,10 +105,11 @@ export type AdminStaff = {
     id: number;
     name: string;
     role: "ADMIN" | "OFFICER";
+    avatarUrl: string | null;
     organization: { id: number; name: string } | null;
 };
 export type AdminTicketSummary = TicketSummary & {
-    replies: Array<{ agency: string; message: string; createdAt: string }>;
+    replies: TicketDetail["replies"];
 };
 
 export const getAdminSession = async () => (await request<AdminStaff>("/admin/session")).data;
@@ -126,6 +133,17 @@ export const updateAdminProfile = async (name: string, organizationName: string)
             body: JSON.stringify({ name, organizationName }),
         })
     ).data;
+
+export const updateAdminAvatar = async (avatar: File) => {
+    const form = new FormData();
+    form.append("avatar", avatar);
+    return (
+        await request<AdminStaff>("/admin/profile/avatar", {
+            method: "PATCH",
+            body: form,
+        })
+    ).data;
+};
 
 export const listAdminTickets = async (query = "") => {
     const search = new URLSearchParams();
@@ -151,17 +169,22 @@ export type AdminReplyResult = {
     agency: string;
     message: string;
     createdAt: string;
+    avatarUrl: string | null;
+    attachments: Array<{ url: string; createdAt: string }>;
     statusChange: { from: TicketStatus; to: TicketStatus } | null;
 };
 
-export const createAdminTicketReply = async (trackingId: string, replyText: string) =>
-    (
+export const createAdminTicketReply = async (trackingId: string, replyText: string, attachments: File[] = []) => {
+    const form = new FormData();
+    form.append("replyText", replyText);
+    attachments.forEach((attachment) => form.append("attachments", attachment));
+    return (
         await request<AdminReplyResult>(
             `/admin/tickets/${encodeURIComponent(trackingId)}/replies`,
             {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ replyText }),
+                body: form,
             },
         )
     ).data;
+};

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/base/avatar/avatar";
-import { updateAdminProfile } from "../../services/api";
+import { updateAdminAvatar, updateAdminProfile } from "../../services/api";
 
-const ADMIN_AVATAR_URL = "https://baa.unas.ac.id/wp-content/uploads/2013/07/logo-unas.png";
+const DEFAULT_AVATAR_URL = "https://baa.unas.ac.id/wp-content/uploads/2013/07/logo-unas.png";
+const avatarMaxBytes = 5 * 1024 * 1024;
 
 export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaffUpdated, onLogout }) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -11,7 +12,20 @@ export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaf
   const [organizationName, setOrganizationName] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
   const accountMenuRef = useRef(null);
+  const avatarUrl = avatarPreview || staff?.avatarUrl || DEFAULT_AVATAR_URL;
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreview("");
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [avatarFile]);
 
   useEffect(() => {
     if (!accountMenuOpen) return undefined;
@@ -55,6 +69,7 @@ export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaf
     setProfileName(staff?.name || "");
     setOrganizationName(staff?.organization?.name || "");
     setProfileError("");
+    setAvatarFile(null);
     setSettingsOpen(true);
   };
 
@@ -62,6 +77,23 @@ export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaf
     if (profileSaving) return;
     setSettingsOpen(false);
     setProfileError("");
+    setAvatarFile(null);
+  };
+
+  const selectAvatar = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setProfileError("Avatar harus berformat JPEG atau PNG.");
+      return;
+    }
+    if (file.size > avatarMaxBytes) {
+      setProfileError("Ukuran avatar maksimal 5 MB.");
+      return;
+    }
+    setProfileError("");
+    setAvatarFile(file);
   };
 
   const saveProfile = async (event) => {
@@ -70,8 +102,13 @@ export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaf
     setProfileSaving(true);
     setProfileError("");
     try {
-      const updatedStaff = await updateAdminProfile(profileName, organizationName);
+      let updatedStaff = await updateAdminProfile(profileName, organizationName);
       onStaffUpdated(updatedStaff);
+      if (avatarFile) {
+        updatedStaff = await updateAdminAvatar(avatarFile);
+        onStaffUpdated(updatedStaff);
+      }
+      setAvatarFile(null);
       setSettingsOpen(false);
     } catch (error) {
       setProfileError(error.message || "Profil admin gagal diperbarui.");
@@ -106,10 +143,10 @@ export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaf
         </svg>
       </a>
 
-      <div className="input-group input-group--search hidden lg:flex">
+      {/* <div className="input-group input-group--search hidden lg:flex">
         <span className="input-group__text">Cari</span>
         <input type="search" className="input" placeholder="Cari ticket atau pelapor..." aria-label="Cari" />
-      </div>
+      </div> */}
 
       <div className="ms-auto">
         <div className="flex gap-1">
@@ -123,7 +160,7 @@ export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaf
               aria-label="Buka menu akun admin"
             >
               <span className="hidden sm:inline font-medium">{staff?.name || "Admin GovAssist"}</span>
-              <Avatar verified size="md" alt={staff?.name || "Admin GovAssist"} src={ADMIN_AVATAR_URL} />
+              <Avatar verified size="md" alt={staff?.name || "Admin GovAssist"} src={avatarUrl} />
               <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="m19 9l-7 6l-7-6" />
               </svg>
@@ -135,7 +172,7 @@ export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaf
               style={{ position: "absolute", top: "calc(100% + 0.25rem)", right: 0, left: "auto" }}
             >
               <div className="flex items-center gap-3 px-3 py-2">
-                <Avatar verified size="md" alt={staff?.name || "Admin GovAssist"} src={ADMIN_AVATAR_URL} />
+                <Avatar verified size="md" alt={staff?.name || "Admin GovAssist"} src={avatarUrl} />
                 <div>
                   <div className="font-medium">{staff?.name || "Admin GovAssist"}</div>
                   <div className="text-xs text-muted-foreground">{staff?.organization?.name || "Organisasi belum diatur"}</div>
@@ -162,39 +199,41 @@ export default function Topbar({ onToggleSidebar, sidebarExpanded, staff, onStaf
     </header>
 
     {settingsOpen && (
-      <div className="dialog dialog--sm" data-state="open" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title">
+      <div className="dialog dialog--lg" data-state="open" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title">
         <div className="dialog__backdrop" onClick={closeSettings} aria-hidden="true" />
         <div className="dialog__panel dialog__panel--scrollable">
           <form className="dialog__content" onSubmit={saveProfile}>
             <header className="dialog__header">
               <div>
                 <h2 className="dialog__title" id="profile-dialog-title">Pengaturan Profil</h2>
-                <p className="text-sm text-muted-foreground">Perbarui identitas petugas admin.</p>
               </div>
             </header>
 
-            <div className="dialog__body flex flex-col gap-5">
-              <div className="flex items-center gap-4">
-                <Avatar verified size="2xl" alt={staff?.name || "Admin GovAssist"} src={ADMIN_AVATAR_URL} />
-                <div>
+            <div className="dialog__body grid grid-cols-12 gap-5">
+              <div className="col-span-12 flex items-center gap-4 rounded-xl bg-secondary p-4">
+                <Avatar verified size="2xl" alt={profileName || "Admin GovAssist"} src={avatarUrl} />
+                <div className="flex flex-col items-start gap-2">
                   <div className="font-medium">Foto Profil</div>
-                  <div className="text-sm text-muted-foreground">Penggantian avatar belum tersedia.</div>
+                  <label className="button button--sm button--neutral">
+                    {avatarFile ? "Ganti Pilihan" : "Pilih Avatar"}
+                    <input className="sr-only" type="file" accept="image/jpeg,image/png" onChange={selectAvatar} disabled={profileSaving} />
+                  </label>
                 </div>
               </div>
 
-              {profileError && <div className="alert alert--danger" role="alert">{profileError}</div>}
+              {profileError && <div className="alert alert--danger col-span-12" role="alert">{profileError}</div>}
 
-              <label className="flex flex-col gap-2">
+              <label className="col-span-12 flex flex-col gap-2 md:col-span-6">
                 <span className="font-medium">Nama</span>
                 <input className="input" value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength="100" required disabled={profileSaving} />
               </label>
 
-              <label className="flex flex-col gap-2">
+              <label className="col-span-12 flex flex-col gap-2 md:col-span-6">
                 <span className="font-medium">Organisasi</span>
                 <input className="input" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} maxLength="150" required disabled={profileSaving} />
               </label>
 
-              <label className="flex flex-col gap-2">
+              <label className="col-span-12 flex flex-col gap-2 md:col-span-6">
                 <span className="font-medium">Peran</span>
                 <input className="input" value={staff?.role || ""} readOnly disabled />
               </label>

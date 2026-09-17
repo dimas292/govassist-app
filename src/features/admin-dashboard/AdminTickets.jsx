@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Avatar } from "@/components/base/avatar/avatar";
 import {
   ApiRequestError,
   createAdminTicketReply,
@@ -7,6 +8,9 @@ import {
 } from "../../services/api";
 import { AdminTicketRowsSkeleton } from "./AdminSkeletons.jsx";
 import "./magic-status.css";
+
+const defaultAvatarUrl = "https://baa.unas.ac.id/wp-content/uploads/2013/07/logo-unas.png";
+const maxAttachmentBytes = 5 * 1024 * 1024;
 
 const statusLabel = {
   RECEIVED: "Diterima",
@@ -47,6 +51,8 @@ export default function AdminTickets({ staff, onChanged, onAuthExpired }) {
   const [savingId, setSavingId] = useState("");
   const [replyTicketId, setReplyTicketId] = useState("");
   const [replyText, setReplyText] = useState("");
+  const [replyAttachments, setReplyAttachments] = useState([]);
+  const [replyAttachmentError, setReplyAttachmentError] = useState("");
   const [replyingId, setReplyingId] = useState("");
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -87,6 +93,8 @@ export default function AdminTickets({ staff, onChanged, onAuthExpired }) {
       if (event.key === "Escape" && !replyingId) {
         setReplyTicketId("");
         setReplyText("");
+        setReplyAttachments([]);
+        setReplyAttachmentError("");
       }
     };
     document.body.style.overflow = "hidden";
@@ -122,6 +130,27 @@ export default function AdminTickets({ staff, onChanged, onAuthExpired }) {
     if (replyingId) return;
     setReplyTicketId("");
     setReplyText("");
+    setReplyAttachments([]);
+    setReplyAttachmentError("");
+  };
+
+  const selectReplyAttachments = (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (files.length > 3) {
+      setReplyAttachmentError("Maksimal 3 lampiran.");
+      return;
+    }
+    if (files.some((file) => !["image/jpeg", "image/png"].includes(file.type))) {
+      setReplyAttachmentError("Lampiran harus berformat JPEG atau PNG.");
+      return;
+    }
+    if (files.some((file) => file.size > maxAttachmentBytes)) {
+      setReplyAttachmentError("Ukuran tiap lampiran maksimal 5 MB.");
+      return;
+    }
+    setReplyAttachmentError("");
+    setReplyAttachments(files);
   };
 
   const handleUpdate = async (ticket) => {
@@ -149,13 +178,15 @@ export default function AdminTickets({ staff, onChanged, onAuthExpired }) {
     setMessage(null);
     setAiStatusChange(null);
     try {
-      const result = await createAdminTicketReply(ticket.id, cleanReply);
+      const result = await createAdminTicketReply(ticket.id, cleanReply, replyAttachments);
       await loadTickets();
       if (result.statusChange) {
         setAiStatusChange(result.statusChange);
         await onChanged?.();
       }
       setReplyText("");
+      setReplyAttachments([]);
+      setReplyAttachmentError("");
       setMessage({
         tone: "success",
         text: result.statusChange
@@ -214,7 +245,7 @@ export default function AdminTickets({ staff, onChanged, onAuthExpired }) {
                         <td>{formatDate(ticket.createdAt)}</td>
                         <td className="text-end">
                           <div className="flex justify-end gap-2">
-                            <button type="button" className="button button--sm button--neutral" onClick={() => { setReplyTicketId(ticket.id); setReplyText(""); setAiStatusChange(null); }}>
+                            <button type="button" className="button button--sm button--neutral" onClick={() => { setReplyTicketId(ticket.id); setReplyText(""); setReplyAttachments([]); setReplyAttachmentError(""); setAiStatusChange(null); }}>
                               {ticket.replies.length ? `Balas (${ticket.replies.length})` : "Balas"}
                             </button>
                             <button type="button" className="button button--sm button--primary" disabled={!allowed.length || draftStatus[ticket.id] === ticket.status || savingId === ticket.id} onClick={() => handleUpdate(ticket)}>
@@ -274,9 +305,23 @@ export default function AdminTickets({ staff, onChanged, onAuthExpired }) {
                         <li className="timeline__item" key={`${reply.createdAt}-${reply.message}`}>
                           <span className={`timeline__marker timeline__marker--${index === replyTicket.replies.length - 1 ? "primary" : "success"}`} />
                           <div className="timeline__body">
-                            <div className="timeline__title">{reply.agency}</div>
-                            <div className="text-sm">{reply.message}</div>
-                            <div className="timeline__time">{formatDate(reply.createdAt)}</div>
+                            <div className="flex items-center gap-3">
+                              <Avatar verified size="sm" alt={reply.agency} src={reply.avatarUrl || defaultAvatarUrl} />
+                              <div>
+                                <div className="timeline__title">{reply.agency}</div>
+                                <div className="timeline__time">{formatDate(reply.createdAt)}</div>
+                              </div>
+                            </div>
+                            <div className="mt-3 text-sm">{reply.message}</div>
+                            {reply.attachments?.length > 0 && (
+                              <div className="mt-3 grid grid-cols-3 gap-2">
+                                {reply.attachments.map((attachment) => (
+                                  <a href={attachment.url} target="_blank" rel="noreferrer" key={attachment.url} aria-label="Buka lampiran balasan">
+                                    <img className="aspect-square w-full rounded-lg object-cover" src={attachment.url} alt="Lampiran balasan" loading="lazy" />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </li>
                       ))}
@@ -302,6 +347,30 @@ export default function AdminTickets({ staff, onChanged, onAuthExpired }) {
                     />
                   </div>
                   <span className="text-xs text-muted-foreground text-end">{replyText.length}/2000</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="button button--sm button--neutral">
+                      Tambah Lampiran
+                      <input className="sr-only" type="file" accept="image/jpeg,image/png" multiple onChange={selectReplyAttachments} disabled={replyingId === replyTicket.id} />
+                    </label>
+                    <span className="text-xs text-muted-foreground">JPEG/PNG, maksimal 3 file, masing-masing 5 MB.</span>
+                  </div>
+                  {replyAttachmentError && <div className="alert alert--danger" role="alert">{replyAttachmentError}</div>}
+                  {replyAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {replyAttachments.map((file, index) => (
+                        <button
+                          type="button"
+                          className="badge badge--soft badge--primary"
+                          key={`${file.name}-${file.lastModified}`}
+                          onClick={() => setReplyAttachments((current) => current.filter((_, fileIndex) => fileIndex !== index))}
+                          disabled={replyingId === replyTicket.id}
+                          title="Hapus lampiran"
+                        >
+                          {file.name} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </section>
               </div>
 
