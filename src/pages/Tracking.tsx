@@ -109,7 +109,7 @@ export default function Tracking() {
                         <input
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Masukkan ID Laporan (Contoh: #GA-BA6DF)"
+                            placeholder="Masukkan ID Laporan (Contoh: GA-BA6DF)"
                             className="h-12 w-full bg-transparent text-sm text-primary outline-none placeholder:text-placeholder"
                         />
                     </div>
@@ -287,11 +287,9 @@ export default function Tracking() {
                                     {report.location}
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={() => navigate(`/tracking/${report.id}`)}
-                                    className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-600"
-                                >
+                                <button type="button" 
+                                onClick={() => navigate(`/tracking/${report.id}`)}
+                                className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-600">
                                     Lihat Detail
                                     <span>→</span>
                                 </button>
